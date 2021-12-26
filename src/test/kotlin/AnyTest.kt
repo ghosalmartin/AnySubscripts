@@ -1,8 +1,10 @@
 package com.bskyb.skynamespace
 
-import get
+import any
 import org.junit.jupiter.api.Test
 import set
+import get
+import invoke
 import kotlin.test.assertEquals
 
 class AnyTest {
@@ -10,7 +12,7 @@ class AnyTest {
     @Test
     fun subscripts() {
 
-        var o: Any?
+        var o: Any? by any()
 
         o = null
         o = emptyList<Any?>()
@@ -18,9 +20,20 @@ class AnyTest {
 
         val expected = "👋"
 
-        o.get() = "👋"
-        assertEquals(expected, o[""])
+        o("👋")
 
+        assertEquals(expected, o())
+
+        val expected2 = "📎"
+
+        o = expected2
+
+        assertEquals(expected2, o())
+
+
+        o["one"] = 1
+
+        assertEquals(1, o["one"])
     }
 
 //
