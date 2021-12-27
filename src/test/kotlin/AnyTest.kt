@@ -2,9 +2,9 @@ package com.bskyb.skynamespace
 
 import any
 import org.junit.jupiter.api.Test
-import set
 import get
 import invoke
+import set
 import kotlin.test.assertEquals
 
 class AnyTest {
@@ -12,27 +12,32 @@ class AnyTest {
     @Test
     fun subscripts() {
 
+        //Must use Delegate as we can't do self=mapOf() in an operator.
         var o: Any? by any()
 
         o = null
         o = emptyList<Any?>()
         o = emptyMap<Any?, Any?>()
 
+
+        //Sets Root Element API 1
+        //Also must use o() to retrieve the value if we want to keep access to the delegate for later use.
         val expected = "👋"
-
-        o("👋")
-
+        o(to = "👋")
         assertEquals(expected, o())
 
+        //Sets Root Element API 2
+        //Also must use o() to retrieve the value if we want to keep access to the delegate for later use.
         val expected2 = "📎"
-
         o = expected2
-
         assertEquals(expected2, o())
 
+        //Sets Element via invoke API 1
+        o("two", to = 2)
+        assertEquals(2, o("two"))
 
+        //Sets Elements via operator but cannot set Root element via this method
         o["one"] = 1
-
         assertEquals(1, o["one"])
     }
 
