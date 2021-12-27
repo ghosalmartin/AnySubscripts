@@ -1,6 +1,7 @@
 package com.bskyb.skynamespace
 
 import any
+import com.bskyb.skynamespace.utils.not
 import org.junit.jupiter.api.Test
 import get
 import invoke
@@ -39,6 +40,11 @@ class AnyTest {
         //Sets Elements via operator but cannot set Root element via this method
         o["one"] = 1
         assertEquals(1, o["one"])
+
+        o[!"one", !2] = 2
+        assertEquals(2, o[!"one", !2])
+
+        println(o)
     }
 
 //
