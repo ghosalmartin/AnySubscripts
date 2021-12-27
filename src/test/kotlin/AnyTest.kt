@@ -7,6 +7,7 @@ import get
 import invoke
 import set
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 class AnyTest {
 
@@ -20,31 +21,24 @@ class AnyTest {
         o = emptyList<Any?>()
         o = emptyMap<Any?, Any?>()
 
+        o = "👋"
+        assertEquals("👋", o())
 
-        //Sets Root Element API 1
-        //Also must use o() to retrieve the value if we want to keep access to the delegate for later use.
-        val expected = "👋"
-        o(to = "👋")
-        assertEquals(expected, o())
+        o["two"] = 2
+        assertEquals(2, o["two"])
 
-        //Sets Root Element API 2
-        //Also must use o() to retrieve the value if we want to keep access to the delegate for later use.
-        val expected2 = "📎"
-        o = expected2
-        assertEquals(expected2, o())
-
-        //Sets Element via invoke API 1
-        o("two", to = 2)
-        assertEquals(2, o("two"))
-
-        //Sets Elements via operator but cannot set Root element via this method
         o["one"] = 1
         assertEquals(1, o["one"])
 
         o[!"one", !2] = 2
         assertEquals(2, o[!"one", !2])
 
-        println(o)
+        o[!"one", !3] = null
+
+        o[10] = 10
+        assertEquals(10, o[10])
+
+        assertEquals(listOf(null, null, 2), o[!"one"])
     }
 
 //
