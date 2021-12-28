@@ -70,26 +70,32 @@ class AnyTest {
         o["one", 2] = mapOf("three" to 4)
         assertEquals(4, o["one", 2, "three"])
 
+        assertEquals(4, o["one", 2, "three"])
+
         o["one", 2] = null
         assertNull(o["one"])
-
-        o["one", "two"] = "martin was here"
-        assertNull(o())
     }
 
     @Test
-    fun nestedKeys(){
+    fun nestedKeys() {
         val o: Any? by any()
 
-        val route = listOf("e", "a", "a", "e", "e").map { Location(it) }
-        o["e", "a"] = "✅"
+        val route = listOf("e", "a", "a", "e", 1,2,3,"e", "e", "a", "a", "e", "e", "e", "a", "a", "e", "e", 1, 2, 3).map {
+            when (it) {
+                is String -> Location(it)
+                is Int -> Location(it)
+                else -> throw IllegalArgumentException()
+            }
+        }
+        println(route.size)
+        o[route] = "✅"
 
         println(o)
-        assertEquals("✅", o["e", "a"])
+        assertEquals("✅", o[route])
     }
 
     @Test
-    fun `any path performance`(){
+    fun `any path performance`() {
         val randomRoutes =
             RandomRoutes(
                 keys = "abcde".map { it.toString() },
@@ -110,7 +116,7 @@ class AnyTest {
     }
 
     @Test
-    fun `set performance`(){
+    fun `set performance`() {
         val randomRoutes =
             RandomRoutes(
                 keys = "abcde".map { it.toString() },
@@ -129,6 +135,32 @@ class AnyTest {
                 o[route] = "✅"
             }
         }
+        println((o() as List<*>).size)
         println(time)
+    }
+
+    @Test
+    fun `get validity`() {
+        val randomRoutes =
+            RandomRoutes(
+                keys = "abcde".map { it.toString() },
+                indices = listOf(1, 2, 3),
+                keyBias = 0.8f,
+                length = 5..20,
+                seed = 4
+            )
+
+        val routes = randomRoutes.generate(10000)
+
+        val o: Any by any()
+
+        routes.forEach { route ->
+            o[route] = "✅"
+        }
+
+        routes.forEach { route ->
+            assertEquals("✅", o[route])
+        }
+
     }
 }

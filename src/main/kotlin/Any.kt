@@ -14,10 +14,12 @@ class any {
 
     operator fun getValue(thisRef: Any?, property: KProperty<*>) = this
     operator fun setValue(thisRef: Any?, property: KProperty<*>?, value: Any?) {
-        internal = if (value is any) {
-            value
-        } else {
-            any().apply { internal = value }
+        internal = when (value) {
+            null -> null
+            is any -> value
+            else -> {
+                any().apply { internal = value }
+            }
         }
     }
 
@@ -26,7 +28,7 @@ class any {
 
 operator fun Any?.invoke(): Any? = (this as? any)?.invoke()
 fun Any?.setRoot(any: Any?) {
-    (this as? any)?.setValue(null, null, any)
+    (this as? any)?.setValue(this, null, any)
 }
 
 //Performance of the set/get below are questionable
@@ -41,6 +43,7 @@ operator fun Any?.set(vararg any: Any, newValue: Any?) =
         },
         newValue = newValue
     )
+
 operator fun Any?.get(vararg any: Any) =
     get(
         route = any.toList().map {
@@ -92,7 +95,7 @@ operator fun Any?.get(key: String): Any? =
 operator fun Any?.set(key: String, newValue: Any?) {
     val map = (this() as? MutableMap<String, Any?>) ?: mutableMapOf()
     val delegate = any().apply {
-        setValue(null, null, newValue)
+        setValue(this, null, newValue)
     }
     map.put(key, delegate)
     setRoot(if (map.isEmpty()) null else map)
@@ -100,26 +103,6 @@ operator fun Any?.set(key: String, newValue: Any?) {
 
 operator fun Any?.get(index: Int): Any? =
     ((this as? Collection<*>) ?: (this() as? Collection<*>))?.elementAtOrNull(index)?.run { this() ?: this }
-
-//TODO port the rest
-
-//set {
-//    guard 0... ~= index else {
-//        return
-//    }
-//    var o = self as? [Any?] ?? []
-//    o.append(contentsOf: repeatElement(nil, count: max(0, index - o.endIndex + 1)))
-//    o[index] = newValue
-//    if o.last ?? nil == nil {
-//        guard let i = o.dropLast().lastIndex(where: { $0 != nil }).map({ $0 + 1 }) else {
-//        self = nil
-//        return
-//    }
-//        o.removeSubrange(i...)
-//    }
-//    self = o
-//}
-//
 
 operator fun Any?.set(index: Int, newValue: Any?) {
 // Unsure whats going on here
@@ -129,23 +112,48 @@ operator fun Any?.set(index: Int, newValue: Any?) {
 
     val collection = (this() as? MutableList<Any?>) ?: mutableListOf()
 
-    repeat(maxOf(0, index - collection.lastIndex + 1)) {
+    repeat(maxOf(0, index - collection.size + 1)) {
         collection.add(null)
     }
-    val delegate = any().apply {
-        setValue(null, null, newValue)
+    val delegate = if (newValue == null) {
+        null
+    } else {
+        any().apply {
+            setValue(this, null, newValue)
+        }
     }
     collection[index] = delegate
-//        collection.last()?.let {
-//            val lastIndex = collection.dropLast(1).indexOfLast { it != null }
-//        }
 
-    setRoot(collection)
+    if (collection[index] == null) {
+        val i: Int = collection.dropLast(1).indexOfLast { it != null } + 1
+        if (i <= 0) {
+            setRoot(null)
+            return
+        }
+
+        setRoot(collection.subList(0, i))
+
+    } else {
+        setRoot(collection)
+    }
 }
 
 //Returns delegates and not values
-internal fun Any?.delegateGet(index: Int): Any? =
-    (this() as? Collection<*>)?.elementAtOrNull(index)
+internal fun Any?.delegateGet(index: Int): Any? {
+    return if ((this() as? Collection<*>)?.elementAtOrNull(index) != null) {
+        (this() as? Collection<*>)?.elementAtOrNull(index)
+    } else {
+        //TODO Pass back the appropriate level, the levels of mess this creates is terrible
+//        val thatLevel = any()
+//        val list = mutableListOf<Any?>().apply {
+//            repeat(maxOf(0, index + 1)) {
+//                add(null)
+//            }
+//            add(index, thatLevel)
+//        }
+//        (this as any)?.setValue(this, null, list).run { thatLevel }
+    }
+}
 
 internal fun Any?.delegateGet(fork: Location): Any? =
     when (fork) {
@@ -153,7 +161,15 @@ internal fun Any?.delegateGet(fork: Location): Any? =
         is Location.Index -> this.delegateGet(fork.index)
     }
 
-internal fun Any?.delegateGet(key: String): Any? = (this() as? Map<String, Any>)?.get(key)
+internal fun Any?.delegateGet(key: String): Any? {
+    return if ((this() as? Map<String, Any>)?.get(key) != null) {
+        (this() as? Map<String, Any>)?.get(key)
+    } else {
+        //TODO Pass back the appropriate level, the levels of mess this creates is terrible
+//        val thatLevel = any()
+//        (this as? any)?.setValue(this, null, mutableMapOf<String, Any>(key to thatLevel)).run { thatLevel }
+    }
+}
 
 internal fun Any?.delegateGet(route: Route): Any? =
     when (route.size) {
