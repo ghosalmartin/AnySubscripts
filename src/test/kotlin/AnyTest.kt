@@ -2,6 +2,7 @@ package com.bskyb.skynamespace
 
 import any
 import com.bskyb.skynamespace.utils.not
+import delegateGet
 import org.junit.jupiter.api.Test
 import get
 import invoke

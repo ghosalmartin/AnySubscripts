@@ -1,6 +1,6 @@
 import kotlin.reflect.KProperty
 
-val Any?.recursivelyFlatMapped get(): Any? = this?.let { Any(this) }
+val Any?.recursivelyFlatMapped get(): Any? = (this as any).invoke()?.let { Any(it) }
 
 fun Any(Any: Any) = Any.recursivelyFlatMapped ?: Any
 
@@ -14,10 +14,10 @@ class any {
 
     operator fun getValue(thisRef: Any?, property: KProperty<*>) = this
     operator fun setValue(thisRef: Any?, property: KProperty<*>?, value: Any?) {
-        if (value is any) {
-            internal = value
+        internal = if (value is any) {
+            value
         } else {
-            internal = any().apply { internal = value }
+            any().apply { internal = value }
         }
     }
 
@@ -57,7 +57,9 @@ operator fun Any?.set(fork: Location, newValue: Any?) =
         is Location.Index -> this[fork.index] = newValue
     }
 
-operator fun Any?.get(key: String): Any? = (this() as? Map<String, Any>)?.get(key)()
+operator fun Any?.get(key: String): Any? = (
+        (this as? Map<String, Any>) ?: (this() as? Map<String, Any>))?.get(key)()
+
 operator fun Any?.set(key: String, newValue: Any?) {
     val map = (this() as? MutableMap<String, Any?>) ?: mutableMapOf()
     val delegate = any().apply {
@@ -68,7 +70,9 @@ operator fun Any?.set(key: String, newValue: Any?) {
 }
 
 //TODO the invoke on the this() is causing problems
-operator fun Any?.get(index: Int): Any? = (this as? Collection<*>)?.elementAtOrNull(index)()
+operator fun Any?.get(index: Int): Any? =
+    ((this as? Collection<*>) ?: (this() as? Collection<*>))?.elementAtOrNull(index)()
+
 //TODO port the rest
 operator fun Any?.set(index: Int, newValue: Any?) {
 // Unsure whats going on here
