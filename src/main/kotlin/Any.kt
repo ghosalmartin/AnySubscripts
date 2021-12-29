@@ -22,13 +22,7 @@ data class any(private var internal: Any? = null) {
     fun invoke(): Any? {
         return (internal as? any)()?.run {
             when (this) {
-                is List<*> -> map {
-                    if (it is any) {
-                        it()
-                    } else {
-                        it
-                    }
-                }
+                is List<*> -> map { ((it as? any)()) ?: it }
                 else -> this
             }
         } ?: internal
