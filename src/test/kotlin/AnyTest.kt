@@ -33,7 +33,8 @@ class AnyTest {
         assertEquals(2, o["one", 2])
 
         o["one", 3] = null
-        assertEquals(listOf(null, null, 2), o["one"])
+        val oneList: List<any> = o["one"] as List<any>
+        assertEquals(listOf(null, null, 2), oneList.map { it() })
 
         o["one", 2] = mapOf("three" to 4)
         assertEquals(4, o["one", 2, "three"])
@@ -51,7 +52,7 @@ class AnyTest {
 //        val firstRoute = !listOf(0, 1, "b", "a", "d", 5, "b", "a", "e", "b", 10, 11, 12)
 //        val secondRoute = !listOf(0, "e", 2, "e", "e", "b", 6, "b", "e", "d", "e", "c", "d", "b", "d", "b")
         val firstRoute = !listOf(0, 1, "a")
-        val secondRoute = !listOf(0, "b", "e")
+        val secondRoute = !listOf(0, "e", 2)
 
         o[firstRoute] = "✅"
         assertEquals("✅", o[firstRoute], "firstRoute")
@@ -120,9 +121,8 @@ class AnyTest {
         val o: Any? by any()
 
         routes.forEach { route ->
-            println(route)
             o[route] = "✅"
-            assertEquals("✅", o[route], "$route failing")
+            assertEquals("✅", o[route])
         }
     }
 }

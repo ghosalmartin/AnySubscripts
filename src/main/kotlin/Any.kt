@@ -20,19 +20,12 @@ data class any(private var internal: Any? = null) {
     }
 
     fun invoke(): Any? {
-        return (internal as? any)()?.run {
-            when (this) {
-                is List<*> -> map { ((it as? any)()) ?: it }
-                else -> this
-            }
-        } ?: internal
+        return (internal as? any)() ?: internal
     }
 }
 
 operator fun Any?.invoke(): Any? = (this as? any)?.invoke()
-fun Any?.setRoot(any: Any?) {
-    (this as? any)?.setValue(this, null, any)
-}
+fun Any?.setRoot(any: Any?): Any? = apply { (this as? any)?.setValue(this, null, any) }
 
 //Performance of the set/get below are questionable
 operator fun Any?.set(vararg any: Any, newValue: Any?) =
@@ -146,7 +139,7 @@ operator fun Any?.set(index: Int, newValue: Any?) {
     }
 }
 
-//Returns delegates and not values
+//Returns delegates and builds path out if no element
 internal fun Any?.delegateGet(index: Int): Any? {
     val root = (this() ?: this) as? Collection<Any>
     return if (root?.indices?.contains(index) == true) {
@@ -169,11 +162,7 @@ internal fun Any?.delegateGet(key: String): Any? {
         root[key]
     } else {
         val thatLevel = any()
-        if(root?.isNotEmpty() == true){
-            root[key] = thatLevel
-        } else {
-            this[key] = thatLevel
-        }
+        this[key] = thatLevel
         thatLevel
     }
 }
