@@ -99,10 +99,10 @@ operator fun Any?.set(fork: Location, newValue: Any?) =
     }
 
 operator fun Any?.get(key: String): Any? =
-    ((this as? Map<String, Any>) ?: (this() as? Map<String, Any>))?.getOrDefault(key, null).run { this() ?: this }
+    ((this() ?: this) as? Map<String, Any>)?.getOrDefault(key, null).run { this() ?: this }
 
 operator fun Any?.set(key: String, newValue: Any?) {
-    val map = (this() as? MutableMap<String, Any?>) ?: mutableMapOf()
+    val map = ((this() ?: this) as? MutableMap<String, Any?>) ?: mutableMapOf()
     val delegate = any().apply {
         setValue(this, null, newValue)
     }
@@ -111,7 +111,7 @@ operator fun Any?.set(key: String, newValue: Any?) {
 }
 
 operator fun Any?.get(index: Int): Any? =
-    ((this as? Collection<*>) ?: (this() as? Collection<*>))?.elementAtOrNull(index)?.run { this() ?: this }
+    ((this() ?: this) as? Collection<Any>)?.elementAtOrNull(index)?.run { this() ?: this }
 
 operator fun Any?.set(index: Int, newValue: Any?) {
 // Unsure whats going on here
@@ -148,15 +148,15 @@ operator fun Any?.set(index: Int, newValue: Any?) {
 
 //Returns delegates and not values
 internal fun Any?.delegateGet(index: Int): Any? {
-    return if ((this() as? Collection<*>)?.elementAtOrNull(index) != null) {
-        (this() as? Collection<*>)?.elementAtOrNull(index)
+    val root = (this() ?: this) as? Collection<Any>
+    return if (root?.indices?.contains(index) == true) {
+        root.elementAtOrNull(index)
     } else {
         val thatLevel = any()
         this[index] = thatLevel
         thatLevel
     }
 }
-
 internal fun Any?.delegateGet(fork: Location): Any? =
     when (fork) {
         is Location.Key -> this.delegateGet(fork.key)
@@ -164,11 +164,16 @@ internal fun Any?.delegateGet(fork: Location): Any? =
     }
 
 internal fun Any?.delegateGet(key: String): Any? {
-    return if ((this() as? Map<String, Any>)?.get(key) != null) {
-        (this() as? Map<String, Any>)?.get(key)
+    val root = (this() ?: this) as? Map<String, Any>
+    return if (root?.containsKey(key) == true) {
+        root[key]
     } else {
         val thatLevel = any()
-        this[key] = thatLevel
+        if(root?.isNotEmpty() == true){
+            root[key] = thatLevel
+        } else {
+            this[key] = thatLevel
+        }
         thatLevel
     }
 }

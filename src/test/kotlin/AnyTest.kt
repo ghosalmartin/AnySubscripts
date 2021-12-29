@@ -48,13 +48,15 @@ class AnyTest {
     fun nestedKeys() {
         val o: Any? by any()
 
-        val firstRoute = !listOf(0, "b", "a")
+//        val firstRoute = !listOf(0, 1, "b", "a", "d", 5, "b", "a", "e", "b", 10, 11, 12)
+//        val secondRoute = !listOf(0, "e", 2, "e", "e", "b", 6, "b", "e", "d", "e", "c", "d", "b", "d", "b")
+        val firstRoute = !listOf(0, 1, "a")
         val secondRoute = !listOf(0, "b", "e")
 
         o[firstRoute] = "✅"
-        assertEquals("✅", o[firstRoute])
+        assertEquals("✅", o[firstRoute], "firstRoute")
         o[secondRoute] = "✅"
-        assertEquals("✅", o[secondRoute])
+        assertEquals("✅", o[secondRoute], "secondRoute")
     }
 
     @Test
@@ -117,7 +119,7 @@ class AnyTest {
 
         val o: Any? by any()
 
-        routes.take(15).forEach { route ->
+        routes.forEach { route ->
             println(route)
             o[route] = "✅"
             assertEquals("✅", o[route], "$route failing")
