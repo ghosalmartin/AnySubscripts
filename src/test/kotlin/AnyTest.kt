@@ -2,7 +2,6 @@ package com.bskyb.skynamespace
 
 import any
 import com.bskyb.skynamespace.utils.RandomRoutes
-import com.bskyb.skynamespace.utils.not
 import org.junit.jupiter.api.Test
 import get
 import invoke
@@ -33,8 +32,8 @@ class AnyTest {
         assertEquals(2, o["one", 2])
 
         o["one", 3] = null
-        val oneList: List<any> = o["one"] as List<any>
-        assertEquals(listOf(null, null, 2), oneList.map { it() })
+        val oneList = (o["one"] as List<any>).map { it() }
+        assertEquals(listOf(null, null, 2), oneList)
 
         o["one", 2] = mapOf("three" to 4)
         assertEquals(4, o["one", 2, "three"])
@@ -46,22 +45,28 @@ class AnyTest {
     }
 
     @Test
-    fun nestedKeys() {
+    fun `get set validity`() {
+        val randomRoutes =
+            RandomRoutes(
+                keys = "abcde".map { it.toString() },
+                indices = listOf(1, 2, 3),
+                keyBias = 0.8f,
+                length = 5..20,
+                seed = 4
+            )
+
+        val routes = randomRoutes.generate(10000)
+
         val o: Any? by any()
 
-//        val firstRoute = !listOf(0, 1, "b", "a", "d", 5, "b", "a", "e", "b", 10, 11, 12)
-//        val secondRoute = !listOf(0, "e", 2, "e", "e", "b", 6, "b", "e", "d", "e", "c", "d", "b", "d", "b")
-        val firstRoute = !listOf(0, 1, "a")
-        val secondRoute = !listOf(0, "e", 2)
-
-        o[firstRoute] = "✅"
-        assertEquals("✅", o[firstRoute], "firstRoute")
-        o[secondRoute] = "✅"
-        assertEquals("✅", o[secondRoute], "secondRoute")
+        routes.forEach { route ->
+            o[route] = "✅"
+            assertEquals("✅", o[route])
+        }
     }
 
     @Test
-    fun `any path performance`() {
+    fun `path performance`() {
         val randomRoutes =
             RandomRoutes(
                 keys = "abcde".map { it.toString() },
@@ -103,26 +108,5 @@ class AnyTest {
         }
 
         println(time)
-    }
-
-    @Test
-    fun `get validity`() {
-        val randomRoutes =
-            RandomRoutes(
-                keys = "abcde".map { it.toString() },
-                indices = listOf(1, 2, 3),
-                keyBias = 0.8f,
-                length = 5..20,
-                seed = 4
-            )
-
-        val routes = randomRoutes.generate(10000)
-
-        val o: Any? by any()
-
-        routes.forEach { route ->
-            o[route] = "✅"
-            assertEquals("✅", o[route])
-        }
     }
 }

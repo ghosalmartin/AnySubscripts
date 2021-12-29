@@ -139,7 +139,7 @@ operator fun Any?.set(index: Int, newValue: Any?) {
     }
 }
 
-//Returns delegates and builds path out if no element
+//Returns delegates and builds path out if no element, this seems to be faster than building paths out upfront
 internal fun Any?.delegateGet(index: Int): Any? {
     val root = (this() ?: this) as? Collection<Any>
     return if (root?.indices?.contains(index) == true) {
@@ -150,6 +150,7 @@ internal fun Any?.delegateGet(index: Int): Any? {
         thatLevel
     }
 }
+
 internal fun Any?.delegateGet(fork: Location): Any? =
     when (fork) {
         is Location.Key -> this.delegateGet(fork.key)
