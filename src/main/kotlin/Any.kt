@@ -157,15 +157,9 @@ internal fun Any?.delegateGet(index: Int): Any? {
     return if ((this() as? Collection<*>)?.elementAtOrNull(index) != null) {
         (this() as? Collection<*>)?.elementAtOrNull(index)
     } else {
-        //TODO Pass back the appropriate level, the levels of mess this creates is terrible
-//        val thatLevel = any()
-//        val list = mutableListOf<Any?>().apply {
-//            repeat(maxOf(0, index + 1)) {
-//                add(null)
-//            }
-//            add(index, thatLevel)
-//        }
-//        (this as any)?.setValue(this, null, list).run { thatLevel }
+        val thatLevel = any()
+        this[index] = thatLevel
+        thatLevel
     }
 }
 
@@ -179,9 +173,9 @@ internal fun Any?.delegateGet(key: String): Any? {
     return if ((this() as? Map<String, Any>)?.get(key) != null) {
         (this() as? Map<String, Any>)?.get(key)
     } else {
-        //TODO Pass back the appropriate level, the levels of mess this creates is terrible
-//        val thatLevel = any()
-//        (this as? any)?.setValue(this, null, mutableMapOf<String, Any>(key to thatLevel)).run { thatLevel }
+        val thatLevel = any()
+        this[key] = thatLevel
+        thatLevel
     }
 }
 

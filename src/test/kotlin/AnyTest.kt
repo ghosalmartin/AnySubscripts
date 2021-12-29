@@ -1,8 +1,8 @@
 package com.bskyb.skynamespace
 
-import Location
 import any
 import com.bskyb.skynamespace.utils.RandomRoutes
+import com.bskyb.skynamespace.utils.not
 import org.junit.jupiter.api.Test
 import get
 import invoke
@@ -48,17 +48,13 @@ class AnyTest {
     fun nestedKeys() {
         val o: Any? by any()
 
-        val route =
-            listOf("e", "a", "a", "e", 1, 2, 3, "e", "e", "a", "a", "e", "e", "e", "a", "a", "e", "e", 1, 2, 3).map {
-                when (it) {
-                    is String -> Location(it)
-                    is Int -> Location(it)
-                    else -> throw IllegalArgumentException()
-                }
-            }
-        o[route] = "✅"
+        val firstRoute = !listOf(0, "b", "a")
+        val secondRoute = !listOf(0, "b", "e")
 
-        assertEquals("✅", o[route])
+        o[firstRoute] = "✅"
+        assertEquals("✅", o[firstRoute])
+        o[secondRoute] = "✅"
+        assertEquals("✅", o[secondRoute])
     }
 
     @Test
@@ -95,7 +91,7 @@ class AnyTest {
 
         val routes = randomRoutes.generate(10000)
 
-        val o: Any by any()
+        val o: Any? by any()
 
         val time = measureTime {
             routes.forEach { route ->
@@ -119,15 +115,12 @@ class AnyTest {
 
         val routes = randomRoutes.generate(10000)
 
-        val o: Any by any()
+        val o: Any? by any()
 
-        routes.forEach { route ->
+        routes.take(15).forEach { route ->
+            println(route)
             o[route] = "✅"
+            assertEquals("✅", o[route], "$route failing")
         }
-
-        routes.forEach { route ->
-            assertEquals("✅", o[route])
-        }
-
     }
 }
