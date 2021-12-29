@@ -7,12 +7,8 @@ fun Any(Any: Any) = Any.recursivelyFlatMapped ?: Any
 fun <T> Any?.cast(): T =
     (recursivelyFlatMapped as? T) ?: throw ClassCastException("Casting $recursivelyFlatMapped failed")
 
-class any {
-    private var internal: Any? = null
-
-    override fun toString(): String = internal.toString()
-
-    operator fun getValue(thisRef: Any?, property: KProperty<*>) = this
+data class any(private var internal: Any? = null) {
+    operator fun getValue(thisRef: Any?, property: KProperty<*>): any = this
     operator fun setValue(thisRef: Any?, property: KProperty<*>?, value: Any?) {
         internal = when (value) {
             null -> null
@@ -23,7 +19,20 @@ class any {
         }
     }
 
-    fun invoke(): Any? = (internal as? any)() ?: internal
+    fun invoke(): Any? {
+        return (internal as? any)()?.run {
+            when (this) {
+                is List<*> -> map {
+                    if (it is any) {
+                        it()
+                    } else {
+                        it
+                    }
+                }
+                else -> this
+            }
+        } ?: internal
+    }
 }
 
 operator fun Any?.invoke(): Any? = (this as? any)?.invoke()
@@ -74,7 +83,13 @@ operator fun Any?.get(route: Route): Any? =
     }
 
 operator fun Any?.set(route: Route, newValue: Any?) {
-    delegateGet((route as List).dropLast(1))[route.last()] = newValue
+    //This entire set is a massive mess
+    val parent = delegateGet((route as List).dropLast(1))
+    parent[route.last()] = newValue
+    if ((parent as? any)() == null) {
+        val grandParent = delegateGet(route.dropLast(2))
+        grandParent[route[route.size - 1]] = null
+    }
 }
 
 operator fun Any?.get(fork: Location): Any? =
@@ -132,7 +147,6 @@ operator fun Any?.set(index: Int, newValue: Any?) {
         }
 
         setRoot(collection.subList(0, i))
-
     } else {
         setRoot(collection)
     }
