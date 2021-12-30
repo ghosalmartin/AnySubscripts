@@ -19,15 +19,12 @@ data class any(private var internal: Any? = null) {
         }
     }
 
-    fun invoke(): Any? {
-        return (internal as? any)() ?: internal
-    }
+    fun invoke(): Any? = (internal as? any)() ?: internal
 }
 
 operator fun Any?.invoke(): Any? = (this as? any)?.invoke()
-fun Any?.setRoot(any: Any?): Any? = apply { (this as? any)?.setValue(this, null, any) }
+fun Any?.setThis(any: Any?): Any? = apply { (this as? any)?.setValue(this, null, any) }
 
-//Performance of the set/get below are questionable
 operator fun Any?.set(vararg any: Any, newValue: Any?) =
     set(
         route = any.toList().map {
@@ -71,10 +68,10 @@ operator fun Any?.get(route: Route): Any? =
 
 operator fun Any?.set(route: Route, newValue: Any?) {
     //This entire set is a massive mess
-    val parent = delegateGet((route as List).dropLast(1))
+    val parent = getOrCreate((route as List).dropLast(1))
     parent[route.last()] = newValue
     if ((parent as? any)() == null) {
-        val grandParent = delegateGet(route.dropLast(2))
+        val grandParent = getOrCreate(route.dropLast(2))
         grandParent[route[route.size - 1]] = null
     }
 }
@@ -95,23 +92,18 @@ operator fun Any?.get(key: String): Any? =
     ((this() ?: this) as? Map<String, Any>)?.getOrDefault(key, null).run { this() ?: this }
 
 operator fun Any?.set(key: String, newValue: Any?) {
-    val map = ((this() ?: this) as? MutableMap<String, Any?>) ?: mutableMapOf()
+    val map = (this() as? MutableMap<String, Any?>) ?: mutableMapOf()
     val delegate = any().apply {
         setValue(this, null, newValue)
     }
     map.put(key, delegate)
-    setRoot(if (map.isEmpty()) null else map)
+    setThis(if (map.isEmpty()) null else map)
 }
 
 operator fun Any?.get(index: Int): Any? =
     ((this() ?: this) as? Collection<Any>)?.elementAtOrNull(index)?.run { this() ?: this }
 
 operator fun Any?.set(index: Int, newValue: Any?) {
-// Unsure whats going on here
-//    guard 0... ~= index else {
-//        return
-//    }
-
     val collection = (this() as? MutableList<Any?>) ?: mutableListOf()
 
     repeat(maxOf(0, index - collection.size + 1)) {
@@ -129,19 +121,19 @@ operator fun Any?.set(index: Int, newValue: Any?) {
     if (collection[index] == null) {
         val i: Int = collection.dropLast(1).indexOfLast { it != null } + 1
         if (i <= 0) {
-            setRoot(null)
+            setThis(null)
             return
         }
 
-        setRoot(collection.subList(0, i))
+        setThis(collection.subList(0, i))
     } else {
-        setRoot(collection)
+        setThis(collection)
     }
 }
 
 //Returns delegates and builds path out if no element, this seems to be faster than building paths out upfront
-internal fun Any?.delegateGet(index: Int): Any? {
-    val root = (this() ?: this) as? Collection<Any>
+internal fun Any?.getOrCreate(index: Int): Any? {
+    val root = this() as? Collection<Any>
     return if (root?.indices?.contains(index) == true) {
         root.elementAtOrNull(index)
     } else {
@@ -151,14 +143,14 @@ internal fun Any?.delegateGet(index: Int): Any? {
     }
 }
 
-internal fun Any?.delegateGet(fork: Location): Any? =
+internal fun Any?.getOrCreate(fork: Location): Any? =
     when (fork) {
-        is Location.Key -> this.delegateGet(fork.key)
-        is Location.Index -> this.delegateGet(fork.index)
+        is Location.Key -> getOrCreate(fork.key)
+        is Location.Index -> getOrCreate(fork.index)
     }
 
-internal fun Any?.delegateGet(key: String): Any? {
-    val root = (this() ?: this) as? Map<String, Any>
+internal fun Any?.getOrCreate(key: String): Any? {
+    val root = this() as? Map<String, Any>
     return if (root?.containsKey(key) == true) {
         root[key]
     } else {
@@ -168,17 +160,17 @@ internal fun Any?.delegateGet(key: String): Any? {
     }
 }
 
-internal fun Any?.delegateGet(route: Route): Any? =
+internal fun Any?.getOrCreate(route: Route): Any? =
     when (route.size) {
         0 -> this
-        1 -> delegateGet(route.first())
-        2 -> delegateGet(route.elementAt(0)).delegateGet(route.elementAt(1))
-        3 -> delegateGet(route.elementAt(0)).delegateGet(route.elementAt(1)).delegateGet(route.elementAt(2))
-        4 -> delegateGet(route.elementAt(0)).delegateGet(route.elementAt(1)).delegateGet(route.elementAt(2)).delegateGet(route.elementAt(3))
-        5 -> delegateGet(route.elementAt(0)).delegateGet(route.elementAt(1)).delegateGet(route.elementAt(2)).delegateGet(route.elementAt(3)).delegateGet(route.elementAt(4))
-        6 -> delegateGet(route.elementAt(0)).delegateGet(route.elementAt(1)).delegateGet(route.elementAt(2)).delegateGet(route.elementAt(3)).delegateGet(route.elementAt(4)).delegateGet(route.elementAt(5))
-        7 -> delegateGet(route.elementAt(0)).delegateGet(route.elementAt(1)).delegateGet(route.elementAt(2)).delegateGet(route.elementAt(3)).delegateGet(route.elementAt(4)).delegateGet(route.elementAt(5)).delegateGet(route.elementAt(6))
-        8 -> delegateGet(route.elementAt(0)).delegateGet(route.elementAt(1)).delegateGet(route.elementAt(2)).delegateGet(route.elementAt(3)).delegateGet(route.elementAt(4)).delegateGet(route.elementAt(5)).delegateGet(route.elementAt(6)).delegateGet(route.elementAt(7))
-        9 -> delegateGet(route.elementAt(0)).delegateGet(route.elementAt(1)).delegateGet(route.elementAt(2)).delegateGet(route.elementAt(3)).delegateGet(route.elementAt(4)).delegateGet(route.elementAt(5)).delegateGet(route.elementAt(6)).delegateGet(route.elementAt(7)).delegateGet(route.elementAt(8))
-        else -> delegateGet(route.elementAt(0)).delegateGet(route.elementAt(1)).delegateGet(route.elementAt(2)).delegateGet(route.elementAt(3)).delegateGet(route.elementAt(4)).delegateGet(route.elementAt(5)).delegateGet(route.elementAt(6)).delegateGet(route.elementAt(7)).delegateGet(route.elementAt(8)).delegateGet(route.drop(9))
+        1 -> getOrCreate(route.first())
+        2 -> getOrCreate(route.elementAt(0)).getOrCreate(route.elementAt(1))
+        3 -> getOrCreate(route.elementAt(0)).getOrCreate(route.elementAt(1)).getOrCreate(route.elementAt(2))
+        4 -> getOrCreate(route.elementAt(0)).getOrCreate(route.elementAt(1)).getOrCreate(route.elementAt(2)).getOrCreate(route.elementAt(3))
+        5 -> getOrCreate(route.elementAt(0)).getOrCreate(route.elementAt(1)).getOrCreate(route.elementAt(2)).getOrCreate(route.elementAt(3)).getOrCreate(route.elementAt(4))
+        6 -> getOrCreate(route.elementAt(0)).getOrCreate(route.elementAt(1)).getOrCreate(route.elementAt(2)).getOrCreate(route.elementAt(3)).getOrCreate(route.elementAt(4)).getOrCreate(route.elementAt(5))
+        7 -> getOrCreate(route.elementAt(0)).getOrCreate(route.elementAt(1)).getOrCreate(route.elementAt(2)).getOrCreate(route.elementAt(3)).getOrCreate(route.elementAt(4)).getOrCreate(route.elementAt(5)).getOrCreate(route.elementAt(6))
+        8 -> getOrCreate(route.elementAt(0)).getOrCreate(route.elementAt(1)).getOrCreate(route.elementAt(2)).getOrCreate(route.elementAt(3)).getOrCreate(route.elementAt(4)).getOrCreate(route.elementAt(5)).getOrCreate(route.elementAt(6)).getOrCreate(route.elementAt(7))
+        9 -> getOrCreate(route.elementAt(0)).getOrCreate(route.elementAt(1)).getOrCreate(route.elementAt(2)).getOrCreate(route.elementAt(3)).getOrCreate(route.elementAt(4)).getOrCreate(route.elementAt(5)).getOrCreate(route.elementAt(6)).getOrCreate(route.elementAt(7)).getOrCreate(route.elementAt(8))
+        else -> getOrCreate(route.elementAt(0)).getOrCreate(route.elementAt(1)).getOrCreate(route.elementAt(2)).getOrCreate(route.elementAt(3)).getOrCreate(route.elementAt(4)).getOrCreate(route.elementAt(5)).getOrCreate(route.elementAt(6)).getOrCreate(route.elementAt(7)).getOrCreate(route.elementAt(8)).getOrCreate(route.drop(9))
     }

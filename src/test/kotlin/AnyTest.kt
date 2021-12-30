@@ -78,12 +78,13 @@ class AnyTest {
 
         val routes = randomRoutes.generate(10000)
 
-        val time = measureTime {
+        measureTime {
             routes.forEach {
                 get(it)
             }
+        }.also {
+            println(it)
         }
-        println(time)
     }
 
     @Test
@@ -101,12 +102,12 @@ class AnyTest {
 
         val o: Any? by any()
 
-        val time = measureTime {
+        measureTime {
             routes.forEach { route ->
                 o[route] = "✅"
             }
+        }.also {
+            println(it)
         }
-
-        println(time)
     }
 }
