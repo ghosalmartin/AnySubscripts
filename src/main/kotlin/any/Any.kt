@@ -12,6 +12,7 @@ fun <T> Any?.cast(): T =
     (recursivelyFlatMapped as? T) ?: throw ClassCastException("Casting $recursivelyFlatMapped failed")
 
 data class any(private var internal: Any? = null) {
+    override fun toString(): String = internal.toString()
     operator fun getValue(thisRef: Any?, property: KProperty<*>): any = this
     operator fun setValue(thisRef: Any?, property: KProperty<*>?, value: Any?) {
         internal = when (value) {

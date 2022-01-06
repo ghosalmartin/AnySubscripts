@@ -117,5 +117,25 @@ data class Tree<Key, Value>(
     }
 }
 
-val <T> Collection<T>.dropFirst: Collection<T>
-    get() = drop(1)
+val Tree<*, *>.debugDescription: String
+    get() {
+        var o = "${this::class.java}"
+        traverse { route, value ->
+            var t = ""
+            repeat(route.size + 1) { t += "\t|" }
+            o+= "\n\t$route:\n\t$value" ?: null
+
+        }
+        return o
+    }
+
+//var debugDescription: String {
+//    var o = "\(Self.self)"
+//    traverse { route, value in
+//        let t = repeatElement("\t|", count: route.count + 1).joined()
+//        o += "\n\(t)\(route):\n\(t)\(value.map(String.init(describing:)) ?? "nil")"
+//    }
+//    return o
+//}
+
+
