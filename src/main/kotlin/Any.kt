@@ -79,8 +79,14 @@ operator fun Any?.set(fork: Location, newValue: Any?) =
     }
 
 operator fun Any?.get(key: String): Any? =
-    ((this() ?: this) as? Map<String, Any>)?.get(key).run { this() ?: this }
-
+    ((this() ?: this) as? Map<String, Any>)?.get(key).run {
+        (this() ?: this).run {
+            when (this) {
+                is List<*> -> map { it() }
+                else -> this
+            }
+        }
+    }
 operator fun Any?.set(key: String, newValue: Any?) {
     val map = (this() as? MutableMap<String, Any>) ?: mutableMapOf()
     val delegate = newValue.anyOrNull
