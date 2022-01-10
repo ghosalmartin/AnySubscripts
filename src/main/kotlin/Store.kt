@@ -128,6 +128,5 @@ class Store {
     suspend fun get(route: Route? = null): Any? =
         CompletableDeferred<Any?>().apply {
             actor.send(Intent.Get(route, this))
-
         }.await()
 }

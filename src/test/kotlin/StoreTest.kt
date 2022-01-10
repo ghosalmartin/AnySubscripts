@@ -2,14 +2,13 @@ import any.get
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.toList
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import utils.RandomRoutes
 import utils.not
 import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 internal class StoreTest {
 
@@ -110,15 +109,16 @@ internal class StoreTest {
         var result: Any? = null
 
         val latch = CountDownLatch(1)
+        val jobs = mutableListOf<Job>()
 
-        val job1 = launch(Dispatchers.IO) {
+        jobs += launch(Dispatchers.IO) {
             o.stream(route)
                 .collectLatest {
                     countO++
                 }
         }
 
-        val job2 = launch(Dispatchers.IO) {
+        jobs += launch(Dispatchers.IO) {
             o2.stream(route)
                 .collectLatest {
                     countO2++
@@ -137,6 +137,7 @@ internal class StoreTest {
         o2.batch(updates)
 
         latch.await()
+        jobs.map { it.cancelAndJoin() }
 
         val original = o.get()
         val copy = o2.get()
@@ -148,10 +149,97 @@ internal class StoreTest {
 
         assertEquals(originalRouted, copyRouted)
 
-        assertEquals(countO, 723)
-        assertEquals(countO2, 2)
-
-        job1.cancelAndJoin()
-        job2.cancelAndJoin()
+        assertEquals(723, countO)
+        assertEquals(2, countO2)
     }
+
+    @Test
+    fun `1000 subscriptions`() = runBlocking {
+        val routes = RandomRoutes(
+            keys = "abcde".map { it.toString() },
+            indices = listOf(1, 2, 3),
+            keyBias = 0.8f,
+            length = 5..20,
+            seed = 4
+        ).generate(1000)
+
+        val o = Store()
+        val o2 = Store()
+
+        val jobs = mutableListOf<Job>()
+        val latch = CountDownLatch(1)
+        var count = 0
+
+        routes.forEach { route ->
+            jobs += launch(Dispatchers.IO) {
+                o.stream(route)
+                    .collectLatest {
+                        o2.set(route, it)
+                        count++
+                        if(count == routes.size){
+                            latch.countDown()
+                        }
+                    }
+            }
+        }
+
+        routes.forEach { route ->
+            o.set(route, "✅")
+        }
+
+        latch.await()
+
+        jobs.map { it.cancelAndJoin() }
+
+        val original = o.get()
+        val copy = o2.get()
+
+        assertEquals(original, copy)
+    }
+
+    @Test
+    fun `thread safety`() = runBlocking {
+        val f: (String) -> List<Route> = { alphabet ->
+            RandomRoutes(
+                keys = alphabet.map { it.toString() },
+                indices = listOf(),
+                keyBias = 1f,
+                length = 2..7,
+                seed = 7
+            ).generate(1000)
+        }
+
+        val high = f("AB")
+        val low = f("ab")
+
+        val o = Store()
+
+        val results = mutableListOf<Any?>()
+
+        val jobs = mutableListOf<Job>()
+
+        (0..10).forEach {
+            val latchHigh = CountDownLatch(1)
+            val latchLow = CountDownLatch(1)
+
+            jobs += launch(Dispatchers.IO) {
+                high.forEach { o.set(it, "✅") }
+                latchHigh.countDown()
+            }
+
+            jobs += launch(Dispatchers.IO) {
+                low.forEach { o.set(it, "✅") }
+                latchLow.countDown()
+            }
+
+            latchLow.await()
+            latchHigh.await()
+
+            results += o.get()
+        }
+
+        jobs.map { it.cancelAndJoin() }
+        assertTrue { results.dropFirst.all { it == results.first() } }
+    }
+
 }
