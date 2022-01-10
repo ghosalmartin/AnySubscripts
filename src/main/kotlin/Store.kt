@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.launch
 
-typealias BatchUpdates = List<Pair<Route, Any?>>
+typealias BatchUpdates = Collection<Pair<Route, Any?>>
 typealias TransactionalLevel = Int
 typealias ID = Int
 typealias Subject = MutableMap<ID, ProducerScope<Any?>>
@@ -27,6 +27,7 @@ class Store {
 
         data class Batch(val updates: BatchUpdates) : Intent
         data class Transaction(val updates: Store) : Intent
+        data class Get(val route: Route?, val ack: CompletableDeferred<Any?>) : Intent
     }
 
     private val scope = CoroutineScope(Dispatchers.Default)
@@ -41,16 +42,16 @@ class Store {
 
         consumeEach { intent ->
             when (intent) {
+                is Intent.Get -> data.also { intent.ack.complete(intent.route?.let { data[it] } ?: data) }
                 is Intent.Batch -> {
                     val routes: MutableSet<Route> = mutableSetOf()
                     intent.updates.forEach { (route, value) ->
                         data[route] = value
-                        routes.union(subscriptions.routes(route))
+                        routes += subscriptions.routes(route)
                     }
                     routes.sortedWith { route1, route2 -> route1.compareTo(route2) }.forEach { route ->
                         subscriptions[route]?.let {
-                            val value = data[route]
-                            it.values.forEach { it.send(value) }
+                            it.values.forEach { it.send(data[route]) }
                         }
                     }
                 }
@@ -114,13 +115,19 @@ class Store {
         }.await()
 
     suspend fun set(vararg route: Location, value: Any?) = set(route.toList(), value)
-    suspend fun set(route: Route, value: Any?) {
-        val ack = CompletableDeferred<Boolean>()
-        actor.send(Intent.Set(route, value, ack))
-        ack.await()
-    }
+    suspend fun set(route: Route, value: Any?) =
+        CompletableDeferred<Boolean>().apply {
+            actor.send(Intent.Set(route, value, this))
+        }.await()
 
     suspend fun batch(batchUpdates: BatchUpdates) {
         actor.send(Intent.Batch(batchUpdates))
     }
+
+    suspend fun get(vararg route: Location) = get(route.toList())
+    suspend fun get(route: Route? = null): Any? =
+        CompletableDeferred<Any?>().apply {
+            actor.send(Intent.Get(route, this))
+
+        }.await()
 }
