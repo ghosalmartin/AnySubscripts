@@ -55,15 +55,15 @@ data class Tree<Key, Value>(
         getTree(route)?.value
 
     private fun <Route> setValue(route: Route, newValue: Value?) where Route : Collection<Key> {
-        route.firstOrNull()?.let {
-            branches.getOrPut(it) { Tree() }.setValue(route.dropFirst, newValue)
-        } ?: invoke(newValue)
+        if (route.isEmpty()) {
+            invoke(newValue)
+        } else {
+            branches.getOrPut(route.first()) { Tree() }.setValue(route.dropFirst, newValue)
+        }
     }
 
     private fun <Route> getTree(route: Route): Tree<Key, Value>? where Route : Collection<Key> =
-        route.firstOrNull()?.let {
-            branches[it]?.getTree(route.dropFirst)
-        } ?: this
+        if (route.isEmpty()) this else branches[route.first()]?.getTree(route.dropFirst)
 
     private fun <Route> setTree(route: Route, newValue: Tree<Key, Value>?) where Route : Collection<Key> {
         val key = route.firstOrNull()
