@@ -26,15 +26,17 @@ data class Tree<Key, Value>(
         set(route.toList(), newValue)
     }
 
-    //TODO See if I actually ever need this
-//    fun getTree(vararg route: Key, defaultTree: Tree<Key, Value>? = null): Tree<Key, Value> =
-//        defaultTree?.let {
-//            getTreeWithDefault(route.toList(), it)
-//        } ?: getTree(route.toList())!!
-
     operator fun set(vararg route: Key, newTree: Tree<Key, Value>?) {
         setTree(route.toList(), newTree)
     }
+
+    fun <Route> getTree(
+        route: Route,
+        defaultTree: Tree<Key, Value>? = null
+    ): Tree<Key, Value>? where Route : Collection<Key> =
+        defaultTree?.let {
+            getTreeWithDefault(route, it)
+        } ?: getTree(route)
 
     private fun <Route> getValueWithDefault(route: Route, defaultValue: Value): Value? where Route : Collection<Key> =
         getValue(route) ?: run {
