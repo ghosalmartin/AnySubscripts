@@ -5,7 +5,7 @@ data class Drop<Success>(
 )
 
 //
-//public extension Drop {
+// public extension Drop {
 //
 //    @inlinable func map<A>(_ transform: (Success) -> A) -> Drop<Route, A, Failure> {
 //        Drop<Route, A, Failure>(
@@ -14,5 +14,4 @@ data class Drop<Success>(
 //            result: result.map(transform)
 //        )
 //    }
-//}
-
+// }

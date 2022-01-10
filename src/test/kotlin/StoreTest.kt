@@ -1,12 +1,20 @@
 import any.get
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import utils.RandomRoutes
 import utils.not
 import java.util.concurrent.CountDownLatch
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
@@ -132,7 +140,7 @@ internal class StoreTest {
         val updates: BatchUpdates = routes.map {
             o.set(it, "✅")
             it to "✅"
-        }
+        }.toMutableList()
 
         o2.batch(updates)
 
@@ -151,6 +159,55 @@ internal class StoreTest {
 
         assertEquals(723, countO)
         assertEquals(2, countO2)
+    }
+
+    @Test
+    fun transactions() = runBlocking {
+        val o = Store()
+        val latch = CountDownLatch(1)
+
+        val routeToX = listOf(!"x")
+        val routeToY = listOf(!"y")
+        val routeToZ = listOf(!"z")
+
+        val job = launch(Dispatchers.IO) {
+            o.stream(routeToX).filterNotNull().collectLatest {
+                assertEquals(listOf(null, 3), it)
+                latch.countDown()
+            }
+        }
+
+        o.transaction {
+            it.set(routeToX, 1)
+            it.set(routeToY, 1)
+
+            it.transaction {
+                it.set(routeToX, 2)
+                it.set(routeToY, 2)
+
+                try {
+                    it.transaction {
+                        println("$it here end ")
+
+                        it.set(routeToZ, 3)
+                        throw IllegalStateException("Someones feelings have to get hurt")
+                    }
+                } catch (exception: IllegalStateException) {
+                    exception.printStackTrace()
+                }
+                it.transaction {
+                    println("$it here end ")
+                    it.set(routeToX, 3)
+                    it.set(routeToY, 3)
+
+                }
+            }
+        }
+
+        latch.await()
+
+        println(o.get())
+        job.cancelAndJoin()
     }
 
     @Test
@@ -176,7 +233,7 @@ internal class StoreTest {
                     .collectLatest {
                         o2.set(route, it)
                         count++
-                        if(count == routes.size){
+                        if (count == routes.size) {
                             latch.countDown()
                         }
                     }
@@ -241,5 +298,4 @@ internal class StoreTest {
         jobs.map { it.cancelAndJoin() }
         assertTrue { results.dropFirst.all { it == results.first() } }
     }
-
 }

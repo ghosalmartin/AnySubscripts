@@ -12,21 +12,27 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.launch
 
-typealias BatchUpdates = Collection<Pair<Route, Any?>>
+typealias BatchUpdates = MutableList<Pair<Route, Any?>>
 typealias TransactionalLevel = Int
 typealias ID = Int
 typealias Subject = MutableMap<ID, ProducerScope<Any?>>
 
 class Store {
     private sealed interface Intent {
-        data class Set(val route: Route, val value: Any?, val ack: CompletableDeferred<Boolean>) : Intent
+        data class Set(val route: Route, val value: Any?, val ack: CompletableDeferred<Boolean>) :
+            Intent
+
         data class Insert(
             val route: Route,
             val completedDeferred: CompletableDeferred<Flow<Any?>>
         ) : Intent
 
         data class Batch(val updates: BatchUpdates) : Intent
-        data class Transaction(val updates: Store) : Intent
+        data class Transaction(
+            val updates: suspend (Store) -> Unit,
+            val ack: CompletableDeferred<Boolean>
+        ) : Intent
+
         data class Get(val route: Route?, val ack: CompletableDeferred<Any?>) : Intent
     }
 
@@ -42,18 +48,21 @@ class Store {
 
         consumeEach { intent ->
             when (intent) {
-                is Intent.Get -> data.also { intent.ack.complete(intent.route?.let { data[it] } ?: data) }
+                is Intent.Get -> data.also {
+                    intent.ack.complete(intent.route?.let { data[it] } ?: data)
+                }
                 is Intent.Batch -> {
                     val routes: MutableSet<Route> = mutableSetOf()
                     intent.updates.forEach { (route, value) ->
                         data[route] = value
                         routes += subscriptions.routes(route)
                     }
-                    routes.sortedWith { route1, route2 -> route1.compareTo(route2) }.forEach { route ->
-                        subscriptions[route]?.let {
-                            it.values.forEach { it.send(data[route]) }
+                    routes.sortedWith { route1, route2 -> route1.compareTo(route2) }
+                        .forEach { route ->
+                            subscriptions[route]?.let {
+                                it.values.forEach { it.send(data[route]) }
+                            }
                         }
-                    }
                 }
                 is Intent.Insert -> callbackFlow {
                     val route = intent.route
@@ -72,7 +81,26 @@ class Store {
                 }.apply {
                     intent.completedDeferred.complete(this)
                 }
-                is Intent.Transaction -> TODO()
+                is Intent.Transaction -> {
+                    transactionLevel++
+                    try {
+                        intent.updates(this@Store)
+                        val levelUpdates =
+                            transactionUpdates.remove(transactionLevel) ?: mutableListOf()
+                        transactionLevel--
+                        if (transactionLevel > 0) {
+                            transactionUpdates.getOrPut(transactionLevel, { mutableListOf() })
+                                .addAll(levelUpdates)
+                        } else {
+                            batch(levelUpdates)
+                        }
+                        intent.ack.complete(true)
+                    } catch (exception: Exception) {
+                        transactionUpdates.remove(transactionLevel)
+                        transactionLevel -= 1
+                        intent.ack.completeExceptionally(exception)
+                    }
+                }
                 is Intent.Set -> {
                     val (route, value, ack) = intent
                     if (transactionLevel == 0) {
@@ -97,7 +125,7 @@ class Store {
                     } else {
                         transactionUpdates.getOrPut(
                             key = transactionLevel,
-                            defaultValue = { listOf(route to value) }
+                            defaultValue = { mutableListOf(route to value) }
                         )
                     }
                 }
@@ -105,16 +133,16 @@ class Store {
         }
     }
 
-    //TODO Bufferingpolicy variable
+    // TODO Bufferingpolicy variable
     suspend fun stream(vararg route: Location): Flow<Any?> = stream(route.toList())
 
-    //TODO Bufferingpolicy variable, Also callbackFlow may die after it completes cause wut
+    // TODO Bufferingpolicy variable, Also callbackFlow may die after it completes cause wut
     suspend fun stream(route: Route): Flow<Any?> =
         CompletableDeferred<Flow<Any?>>().apply {
             actor.send(Intent.Insert(route, this))
         }.await()
 
-    suspend fun set(vararg route: Location, value: Any?) = set(route.toList(), value)
+    suspend fun set(vararg location: Location, value: Any?) = set(location.toList(), value)
     suspend fun set(route: Route, value: Any?) =
         CompletableDeferred<Boolean>().apply {
             actor.send(Intent.Set(route, value, this))
@@ -128,5 +156,10 @@ class Store {
     suspend fun get(route: Route? = null): Any? =
         CompletableDeferred<Any?>().apply {
             actor.send(Intent.Get(route, this))
+        }.await()
+
+    suspend fun transaction(updates: suspend (Store) -> Unit) =
+        CompletableDeferred<Boolean>().apply {
+            actor.send(Intent.Transaction(updates, this))
         }.await()
 }
