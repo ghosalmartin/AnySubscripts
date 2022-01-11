@@ -122,7 +122,7 @@ internal class TreeTest {
         }
 
         tree.traverse { route, value ->
-            if (traversal.get(key = route.toList()) == value) {
+            if (traversal[route.toList()] == value) {
                 traversal.remove(route)
             }
         }

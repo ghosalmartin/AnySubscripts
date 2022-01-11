@@ -1,5 +1,6 @@
 package tree
 
+import dropFirst
 import lineage
 
 data class Tree<Key, Value>(
@@ -116,6 +117,3 @@ data class Tree<Key, Value>(
             }
     }
 }
-
-val <T> Collection<T>.dropFirst: Collection<T>
-    get() = drop(1)

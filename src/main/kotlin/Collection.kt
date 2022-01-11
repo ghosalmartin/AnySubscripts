@@ -8,3 +8,6 @@ val <T> Collection<T>.lineage: List<List<T>>
             .foldIndexed<T, MutableList<List<T>>>(mutableListOf()) { index, acc, item ->
                 acc.apply { add(if (index > 0) acc[index - 1] + item else listOf(item)) }
             }.reversed()
+
+val <T> Collection<T>.dropFirst: Collection<T>
+    get() = drop(1)
