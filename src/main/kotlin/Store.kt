@@ -11,6 +11,7 @@ import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.launch
+import tree.Tree
 
 typealias BatchUpdates = MutableList<Pair<Route, Any?>>
 typealias TransactionalLevel = Int
@@ -45,7 +46,7 @@ class Store {
         data class TransactionLevel(val ack: CompletableDeferred<Int>) : Intent
     }
 
-    private val scope = CoroutineScope(Dispatchers.Default)
+    private val scope = CoroutineScope(Dispatchers.Unconfined)
 
     private val actor = scope.actor<Intent> {
         val transactionUpdates = mutableMapOf<TransactionalLevel, BatchUpdates>()
@@ -76,7 +77,7 @@ class Store {
                 is Intent.Insert -> callbackFlow {
                     val route = intent.route
                     send(data[route])
-                    count++
+                    count += 1
                     val id = count
                     subscriptions[route, mutableMapOf()]?.put(id, this)
                     awaitClose {
@@ -91,7 +92,7 @@ class Store {
                     intent.completedDeferred.complete(this)
                 }
                 is Intent.Transaction1 -> {
-                    transactionLevel++
+                    transactionLevel += 1
                     intent.ack.complete(true)
                 }
                 is Intent.Transaction2 -> {

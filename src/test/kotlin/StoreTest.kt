@@ -4,10 +4,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -123,17 +121,17 @@ internal class StoreTest {
         val latch = CountDownLatch(1)
         val jobs = mutableListOf<Job>()
 
-        jobs += launch(Dispatchers.IO) {
+        jobs += launch(Dispatchers.Default) {
             o.stream(route)
                 .collectLatest {
-                    countO++
+                    countO += 1
                 }
         }
 
-        jobs += launch(Dispatchers.IO) {
+        jobs += launch(Dispatchers.Default) {
             o2.stream(route)
                 .collectLatest {
-                    countO2++
+                    countO2 += 1
                     result = it
                     it?.let {
                         latch.countDown()
@@ -143,8 +141,8 @@ internal class StoreTest {
 
         val expectedNumberOfRoutes = routes
             .filter {
-                it.elementAtOrNull(0)?.stringValue == "b"
-                        && it.elementAtOrNull(1)?.stringValue == "b"
+                it.elementAtOrNull(0)?.stringValue == "b" &&
+                    it.elementAtOrNull(1)?.stringValue == "b"
             }
 
         val updates: BatchUpdates = routes.map {
@@ -180,7 +178,7 @@ internal class StoreTest {
         val routeToY = listOf(!"y")
         val routeToZ = listOf(!"z")
 
-        val job = launch(Dispatchers.IO) {
+        val job = launch(Dispatchers.Default) {
             o.stream(routeToX).collectIndexed { index, value ->
                 when (index) {
                     0 -> assertNull(value)
@@ -191,7 +189,6 @@ internal class StoreTest {
         }
 
         (1..2).apply {
-
         }
         o.transaction {
             set(routeToX, 1)
@@ -266,11 +263,11 @@ internal class StoreTest {
         var count = 0
 
         routes.forEach { route ->
-            jobs += launch(Dispatchers.IO) {
+            jobs += launch(Dispatchers.Default) {
                 o.stream(route)
                     .collectLatest {
                         o2.set(route, it)
-                        count++
+                        count += 1
                         if (count == routes.size) {
                             latch.countDown()
                         }
@@ -314,21 +311,19 @@ internal class StoreTest {
         val jobs = mutableListOf<Job>()
 
         (0..10).forEach {
-            val latchHigh = CountDownLatch(1)
-            val latchLow = CountDownLatch(1)
+            val latch = CountDownLatch(2)
 
-            jobs += launch(Dispatchers.IO) {
+            jobs += launch(Dispatchers.Default) {
                 high.forEach { o.set(it, "✅") }
-                latchHigh.countDown()
+                latch.countDown()
             }
 
-            jobs += launch(Dispatchers.IO) {
+            jobs += launch(Dispatchers.Default) {
                 low.forEach { o.set(it, "✅") }
-                latchLow.countDown()
+                latch.countDown()
             }
 
-            latchLow.await()
-            latchHigh.await()
+            latch.await()
 
             results += o.get()
         }
