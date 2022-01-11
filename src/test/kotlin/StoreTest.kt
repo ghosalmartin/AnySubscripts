@@ -3,10 +3,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
@@ -16,7 +15,9 @@ import utils.not
 import java.util.concurrent.CountDownLatch
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.test.fail
 
 internal class StoreTest {
 
@@ -137,6 +138,12 @@ internal class StoreTest {
                 }
         }
 
+        val expectedNumberOfRoutes = routes
+            .filter {
+                it.elementAtOrNull(0)?.stringValue == "b"
+                        && it.elementAtOrNull(1)?.stringValue == "b"
+            }
+
         val updates: BatchUpdates = routes.map {
             o.set(it, "✅")
             it to "✅"
@@ -145,7 +152,7 @@ internal class StoreTest {
         o2.batch(updates)
 
         latch.await()
-        jobs.map { it.cancelAndJoin() }
+        jobs.map { it.cancel() }
 
         val original = o.get()
         val copy = o2.get()
@@ -157,7 +164,7 @@ internal class StoreTest {
 
         assertEquals(originalRouted, copyRouted)
 
-        assertEquals(723, countO)
+        assertEquals(expectedNumberOfRoutes.size, countO)
         assertEquals(2, countO2)
     }
 
@@ -171,43 +178,66 @@ internal class StoreTest {
         val routeToZ = listOf(!"z")
 
         val job = launch(Dispatchers.IO) {
-            o.stream(routeToX).filterNotNull().collectLatest {
-                assertEquals(listOf(null, 3), it)
-                latch.countDown()
+            o.stream(routeToX).collectIndexed { index, value ->
+                when (index) {
+                    0 -> if (value == null) assertNull(value) else latch.countDown()
+                        .also { fail("Index 0 not null") }
+                    1 -> assertEquals(3, value).also { latch.countDown() }
+                    else -> fail()
+                }
             }
         }
 
         o.transaction {
-            it.set(routeToX, 1)
-            it.set(routeToY, 1)
+            o.set(routeToX, 1)
+            o.set(routeToY, 1)
 
-            it.transaction {
-                it.set(routeToX, 2)
-                it.set(routeToY, 2)
+            o.transaction {
+                o.set(routeToX, 2)
+                o.set(routeToY, 2)
 
                 try {
-                    it.transaction {
-                        println("$it here end ")
-
-                        it.set(routeToZ, 3)
+                    o.transaction {
+                        o.set(routeToZ, 3)
                         throw IllegalStateException("Someones feelings have to get hurt")
                     }
                 } catch (exception: IllegalStateException) {
-                    exception.printStackTrace()
                 }
-                it.transaction {
-                    println("$it here end ")
+                o.transaction {
                     it.set(routeToX, 3)
                     it.set(routeToY, 3)
-
                 }
             }
         }
 
         latch.await()
-
-        println(o.get())
         job.cancelAndJoin()
+
+        assertEquals(3, o.get()["c"])
+    }
+
+    @Test
+    fun `transaction level`() = runBlocking {
+        val o = Store()
+        o.transaction {
+            assertEquals(1, it.transactionalLevel())
+
+            it.transaction {
+                assertEquals(2, it.transactionalLevel())
+
+                try {
+                    it.transaction {
+                        assertEquals(3, it.transactionalLevel())
+                        throw IllegalStateException("Someones feelings have to get hurt")
+                    }
+                } catch (exception: Exception) {
+                }
+
+                it.transaction {
+                    assertEquals(3, it.transactionalLevel())
+                }
+            }
+        }
     }
 
     @Test

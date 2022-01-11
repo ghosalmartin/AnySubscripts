@@ -28,12 +28,20 @@ class Store {
         ) : Intent
 
         data class Batch(val updates: BatchUpdates) : Intent
-        data class Transaction(
-            val updates: suspend (Store) -> Unit,
+        data class Transaction1(
             val ack: CompletableDeferred<Boolean>
         ) : Intent
 
+        data class Transaction2(
+            val ack: CompletableDeferred<MutableList<Pair<Collection<Location>, Any?>>>
+        ) : Intent
+
+        data class TransactionException(
+            val ack: CompletableDeferred<Boolean>,
+            val exception: Exception
+        ) : Intent
         data class Get(val route: Route?, val ack: CompletableDeferred<Any?>) : Intent
+        data class TransactionLevel(val ack: CompletableDeferred<Int>) : Intent
     }
 
     private val scope = CoroutineScope(Dispatchers.Default)
@@ -81,26 +89,28 @@ class Store {
                 }.apply {
                     intent.completedDeferred.complete(this)
                 }
-                is Intent.Transaction -> {
+                is Intent.Transaction1 -> {
                     transactionLevel++
-                    try {
-                        intent.updates(this@Store)
-                        val levelUpdates =
-                            transactionUpdates.remove(transactionLevel) ?: mutableListOf()
-                        transactionLevel--
-                        if (transactionLevel > 0) {
-                            transactionUpdates.getOrPut(transactionLevel, { mutableListOf() })
-                                .addAll(levelUpdates)
-                        } else {
-                            batch(levelUpdates)
-                        }
-                        intent.ack.complete(true)
-                    } catch (exception: Exception) {
-                        transactionUpdates.remove(transactionLevel)
-                        transactionLevel -= 1
-                        intent.ack.completeExceptionally(exception)
+                    intent.ack.complete(true)
+                }
+                is Intent.Transaction2 -> {
+                    val levelUpdates: MutableList<Pair<Collection<Location>, Any?>> =
+                        transactionUpdates.remove(transactionLevel) ?: mutableListOf()
+                    transactionLevel--
+                    if (transactionLevel > 0) {
+                        transactionUpdates.getOrPut(transactionLevel, { mutableListOf() })
+                            .addAll(levelUpdates)
+                        intent.ack.complete(mutableListOf())
+                    } else {
+                        intent.ack.complete(levelUpdates)
                     }
                 }
+                is Intent.TransactionException -> {
+                    transactionUpdates.remove(transactionLevel)
+                    transactionLevel -= 1
+                    intent.ack.completeExceptionally(intent.exception)
+                }
+                is Intent.TransactionLevel -> intent.ack.complete(transactionLevel)
                 is Intent.Set -> {
                     val (route, value, ack) = intent
                     if (transactionLevel == 0) {
@@ -121,22 +131,20 @@ class Store {
                                 }
                             }
                         }
-                        ack.complete(true)
                     } else {
                         transactionUpdates.getOrPut(
                             key = transactionLevel,
                             defaultValue = { mutableListOf(route to value) }
                         )
                     }
+                    ack.complete(true)
                 }
             }
         }
     }
 
-    // TODO Bufferingpolicy variable
     suspend fun stream(vararg route: Location): Flow<Any?> = stream(route.toList())
 
-    // TODO Bufferingpolicy variable, Also callbackFlow may die after it completes cause wut
     suspend fun stream(route: Route): Flow<Any?> =
         CompletableDeferred<Flow<Any?>>().apply {
             actor.send(Intent.Insert(route, this))
@@ -158,8 +166,26 @@ class Store {
             actor.send(Intent.Get(route, this))
         }.await()
 
-    suspend fun transaction(updates: suspend (Store) -> Unit) =
-        CompletableDeferred<Boolean>().apply {
-            actor.send(Intent.Transaction(updates, this))
+    suspend fun transaction(updates: suspend (Store) -> Unit) {
+        val completedDeferred1 = CompletableDeferred<Boolean>()
+        actor.send(Intent.Transaction1(completedDeferred1))
+        completedDeferred1.await()
+        try {
+            updates(this)
+            val completedDeferred2 =
+                CompletableDeferred<MutableList<Pair<Collection<Location>, Any?>>>()
+            actor.send(Intent.Transaction2(completedDeferred2))
+            val result = completedDeferred2.await()
+            actor.send(Intent.Batch(result))
+        } catch (exception: Exception) {
+            CompletableDeferred<Boolean>().apply {
+                actor.send(Intent.TransactionException(this, exception))
+            }.await()
+        }
+    }
+
+    suspend fun transactionalLevel(): Int =
+        CompletableDeferred<Int>().apply {
+            actor.send(Intent.TransactionLevel(this))
         }.await()
 }
