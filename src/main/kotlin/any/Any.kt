@@ -2,6 +2,7 @@ package any
 
 import Location
 import Route
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.reflect.KProperty
 
 val Any?.recursivelyFlatMapped get(): Any? = (this as any).invoke()?.let { Any(it) }
@@ -93,7 +94,7 @@ operator fun Any?.get(key: String): Any? =
         }
     }
 operator fun Any?.set(key: String, newValue: Any?) {
-    val map = (this() as? MutableMap<String, Any>) ?: mutableMapOf()
+    val map = (this() as? ConcurrentHashMap<String, Any>) ?: ConcurrentHashMap()
     val delegate = newValue.anyOrNull
 
     if (delegate != null) {
