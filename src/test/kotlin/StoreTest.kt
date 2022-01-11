@@ -1,10 +1,13 @@
 import any.get
+import any.invoke
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -164,8 +167,8 @@ internal class StoreTest {
 
         assertEquals(originalRouted, copyRouted)
 
-        assertEquals(expectedNumberOfRoutes.size, countO)
         assertEquals(2, countO2)
+        assertEquals(expectedNumberOfRoutes.size, countO - 1)
     }
 
     @Test
@@ -180,32 +183,34 @@ internal class StoreTest {
         val job = launch(Dispatchers.IO) {
             o.stream(routeToX).collectIndexed { index, value ->
                 when (index) {
-                    0 -> if (value == null) assertNull(value) else latch.countDown()
-                        .also { fail("Index 0 not null") }
+                    0 -> assertNull(value)
                     1 -> assertEquals(3, value).also { latch.countDown() }
                     else -> fail()
                 }
             }
         }
 
-        o.transaction {
-            o.set(routeToX, 1)
-            o.set(routeToY, 1)
+        (1..2).apply {
 
-            o.transaction {
-                o.set(routeToX, 2)
-                o.set(routeToY, 2)
+        }
+        o.transaction {
+            set(routeToX, 1)
+            set(routeToY, 1)
+
+            transaction {
+                set(routeToX, 2)
+                set(routeToY, 2)
 
                 try {
-                    o.transaction {
-                        o.set(routeToZ, 3)
+                    transaction {
+                        set(routeToZ, 3)
                         throw IllegalStateException("Someones feelings have to get hurt")
                     }
                 } catch (exception: IllegalStateException) {
                 }
-                o.transaction {
-                    it.set(routeToX, 3)
-                    it.set(routeToY, 3)
+                transaction {
+                    set(routeToX, 3)
+                    set(routeToY, 3)
                 }
             }
         }
@@ -213,28 +218,31 @@ internal class StoreTest {
         latch.await()
         job.cancelAndJoin()
 
-        assertEquals(3, o.get()["c"])
+        val data = o.get()
+
+        assertEquals(3, data()["x"])
+        assertEquals(3, data()["y"])
     }
 
     @Test
     fun `transaction level`() = runBlocking {
         val o = Store()
         o.transaction {
-            assertEquals(1, it.transactionalLevel())
+            assertEquals(1, transactionalLevel())
 
-            it.transaction {
-                assertEquals(2, it.transactionalLevel())
+            transaction {
+                assertEquals(2, transactionalLevel())
 
                 try {
-                    it.transaction {
-                        assertEquals(3, it.transactionalLevel())
+                    transaction {
+                        assertEquals(3, transactionalLevel())
                         throw IllegalStateException("Someones feelings have to get hurt")
                     }
                 } catch (exception: Exception) {
                 }
 
-                it.transaction {
-                    assertEquals(3, it.transactionalLevel())
+                transaction {
+                    assertEquals(3, transactionalLevel())
                 }
             }
         }

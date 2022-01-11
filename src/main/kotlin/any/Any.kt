@@ -94,7 +94,7 @@ operator fun Any?.get(key: String): Any? =
         }
     }
 operator fun Any?.set(key: String, newValue: Any?) {
-    val map = (this() as? ConcurrentHashMap<String, Any>) ?: ConcurrentHashMap()
+    val map = (this() as? MutableMap<String, Any>) ?: mutableMapOf()
     val delegate = newValue.anyOrNull
 
     if (delegate != null) {

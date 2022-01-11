@@ -40,6 +40,7 @@ class Store {
             val ack: CompletableDeferred<Boolean>,
             val exception: Exception
         ) : Intent
+
         data class Get(val route: Route?, val ack: CompletableDeferred<Any?>) : Intent
         data class TransactionLevel(val ack: CompletableDeferred<Int>) : Intent
     }
@@ -134,8 +135,8 @@ class Store {
                     } else {
                         transactionUpdates.getOrPut(
                             key = transactionLevel,
-                            defaultValue = { mutableListOf(route to value) }
-                        )
+                            defaultValue = { mutableListOf() }
+                        ).add(route to value)
                     }
                     ack.complete(true)
                 }
@@ -144,7 +145,6 @@ class Store {
     }
 
     suspend fun stream(vararg route: Location): Flow<Any?> = stream(route.toList())
-
     suspend fun stream(route: Route): Flow<Any?> =
         CompletableDeferred<Flow<Any?>>().apply {
             actor.send(Intent.Insert(route, this))
@@ -166,17 +166,17 @@ class Store {
             actor.send(Intent.Get(route, this))
         }.await()
 
-    suspend fun transaction(updates: suspend (Store) -> Unit) {
-        val completedDeferred1 = CompletableDeferred<Boolean>()
-        actor.send(Intent.Transaction1(completedDeferred1))
-        completedDeferred1.await()
+    suspend fun transaction(updates: suspend Store.() -> Unit) {
+        CompletableDeferred<Boolean>().apply {
+            actor.send(Intent.Transaction1(this))
+        }.await()
         try {
-            updates(this)
-            val completedDeferred2 =
-                CompletableDeferred<MutableList<Pair<Collection<Location>, Any?>>>()
-            actor.send(Intent.Transaction2(completedDeferred2))
-            val result = completedDeferred2.await()
-            actor.send(Intent.Batch(result))
+            updates()
+            CompletableDeferred<MutableList<Pair<Collection<Location>, Any?>>>().apply {
+                actor.send(Intent.Transaction2(this))
+            }.await().also {
+                actor.send(Intent.Batch(it))
+            }
         } catch (exception: Exception) {
             CompletableDeferred<Boolean>().apply {
                 actor.send(Intent.TransactionException(this, exception))
