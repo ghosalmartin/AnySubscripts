@@ -1,4 +1,4 @@
-
+package any
 import org.junit.jupiter.api.Test
 import utils.RandomRoutes
 import kotlin.test.assertEquals
