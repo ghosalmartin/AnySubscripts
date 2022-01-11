@@ -5,8 +5,10 @@ import Route
 import kotlin.reflect.KProperty
 
 val Any?.recursivelyFlatMapped get(): Any? = (this as any).invoke()?.let { Any(it) }
-
 fun Any(Any: Any) = Any.recursivelyFlatMapped ?: Any
+
+private val Any?.delegate: Any? get() = (this as? any)?.delegate()
+private val Any?.delegateOrValue: Any? get() = delegate ?: this
 
 fun <T> Any?.cast(): T =
     (recursivelyFlatMapped as? T) ?: throw ClassCastException("Casting $recursivelyFlatMapped failed")
@@ -24,7 +26,15 @@ data class any(private var internal: Any? = null) {
         }
     }
 
-    fun invoke(): Any? = (internal as? any)() ?: internal
+    internal fun delegate(): Any? = (internal as? any)?.delegate ?: internal
+
+    fun invoke(): Any? = (internal as? any)()?.run {
+        when (this) {
+            is List<*> -> map { it() }
+            is Map<*, *> -> mapValues { it.value() }
+            else -> this
+        }
+    } ?: internal
 }
 
 operator fun Any?.invoke(): Any? = (this as? any)?.invoke()
@@ -54,7 +64,8 @@ operator fun Any?.get(vararg any: Any) =
     )
 
 operator fun Any?.get(vararg route: Location): Any? = get(route = route.toList())
-operator fun Any?.set(vararg route: Location, newValue: Any?) = set(route = route.toList(), newValue = newValue)
+operator fun Any?.set(vararg route: Location, newValue: Any?) =
+    set(route = route.toList(), newValue = newValue)
 
 operator fun Any?.get(route: Route): Any? =
     accumulateRoute(route) { item, location ->
@@ -84,16 +95,10 @@ operator fun Any?.set(fork: Location, newValue: Any?) =
     }
 
 operator fun Any?.get(key: String): Any? =
-    ((this() ?: this) as? Map<String, Any>)?.get(key).run {
-        (this() ?: this).run {
-            when (this) {
-                is List<*> -> map { it() }
-                else -> this
-            }
-        }
-    }
+    (delegateOrValue as? Map<String, Any>)?.get(key).run { delegateOrValue }
+
 operator fun Any?.set(key: String, newValue: Any?) {
-    val map = (this() as? MutableMap<String, Any>) ?: mutableMapOf()
+    val map = (delegate as? MutableMap<String, Any>) ?: mutableMapOf()
     val delegate = newValue.anyOrNull
 
     if (delegate != null) {
@@ -106,7 +111,7 @@ operator fun Any?.set(key: String, newValue: Any?) {
 }
 
 operator fun Any?.get(index: Int): Any? =
-    ((this() ?: this) as? Collection<Any>)?.elementAtOrNull(index)?.run { this() ?: this }
+    (delegateOrValue as? Collection<Any>)?.elementAtOrNull(index)?.run { delegateOrValue }
 
 operator fun Any?.set(index: Int, newValue: Any?) {
     val collection = (this() as? MutableList<Any?>) ?: mutableListOf()
@@ -130,7 +135,7 @@ operator fun Any?.set(index: Int, newValue: Any?) {
 }
 
 private fun Any?.getOrCreate(index: Int): Any? {
-    val root = this() as? Collection<Any>
+    val root = delegate as? Collection<Any>
     return if (root?.indices?.contains(index) == true) {
         root.elementAtOrNull(index)
     } else {
@@ -147,7 +152,7 @@ private fun Any?.getOrCreate(fork: Location): Any? =
     }
 
 private fun Any?.getOrCreate(key: String): Any? {
-    val root = this() as? Map<String, Any>
+    val root = delegate as? Map<String, Any>
     return if (root?.containsKey(key) == true) {
         root[key]
     } else {
