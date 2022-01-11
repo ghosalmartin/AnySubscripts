@@ -1,3 +1,6 @@
+package tree
+
+import Location
 import utils.RandomRoutes
 import utils.not
 import kotlin.test.Test

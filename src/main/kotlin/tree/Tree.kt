@@ -1,3 +1,7 @@
+package tree
+
+import lineage
+
 data class Tree<Key, Value>(
     private var value: Value? = null,
     private var branches: MutableMap<Key, Tree<Key, Value>> = mutableMapOf()
@@ -16,7 +20,6 @@ data class Tree<Key, Value>(
         defaultValue?.let {
             getValueWithDefault(route, defaultValue)
         } ?: getValue(route)
-
 
     operator fun <Route> set(route: Route, newValue: Value?) where Route : Collection<Key> {
         setValue(route, newValue)
@@ -112,7 +115,6 @@ data class Tree<Key, Value>(
                 traverse(sorted = sorted, route = route + listOf(key), tree = tree, operation = operation)
             }
     }
-
 }
 
 val <T> Collection<T>.dropFirst: Collection<T>
