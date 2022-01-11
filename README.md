@@ -21,8 +21,7 @@ o["one", 2] = 2
 assertEquals(2, o["one", 2])
 
 o["one", 3] = null
-val oneList = (o["one"] as List<any>).map { it() }
-assertEquals(listOf(null, null, 2), oneList)
+assertEquals(listOf(null, null, 2), o["one"])
 
 o["one", 2] = mapOf("three" to 4)
 assertEquals(4, o["one", 2, "three"])

@@ -217,8 +217,7 @@ internal class StoreTest {
 
         val data = o.get()
 
-        assertEquals(3, data()["x"])
-        assertEquals(3, data()["y"])
+        assertEquals(mapOf("x" to 3, "y" to 3), data())
     }
 
     @Test
