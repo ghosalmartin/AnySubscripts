@@ -31,3 +31,27 @@ assertEquals(4, o["one", 2, "three"])
 o["one", 2] = null
 assertNull(o["one"])
 ```
+
+... including an Store actor with routed streams, batch updates and atomic transactions:
+
+```
+runBlocking {
+    val store = Store()
+    val route = !listOf("way", "to", "my", "heart")
+
+    store.set(route, "?")
+
+    store.stream(route)
+        .collectLatest {
+            when (it) {
+                "?" -> store.set(route, "❤️")
+                "❤️" -> store.set(route, "💛")
+                "💛" -> store.set(route, "💚")
+                "💚" -> cancel("Never Be Game Over!")
+                else -> throw IllegalArgumentException("What else is in there? $it")
+            }
+        }
+    }
+}
+```
+
