@@ -150,8 +150,8 @@ class Store(
                 }
                 subscriptions.getTree(route)?.traverse { subRoute, subject ->
                     subject?.let {
-                        launch {
-                            subject.values.forEach {
+                        scope.launch {
+                            subject.values.toList().forEach {
                                 it.send(value[subRoute])
                             }
                         }

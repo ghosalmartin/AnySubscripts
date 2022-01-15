@@ -112,6 +112,7 @@ data class Tree<Key, Value>(
         tree.branches
             .entries
             .apply { if (sorted) sortedWith { t1, t2 -> t1.key.compareTo(t2.key) } }
+            .toList()
             .forEach { (key, tree) ->
                 traverse(sorted = sorted, route = route + listOf(key), tree = tree, operation = operation)
             }
