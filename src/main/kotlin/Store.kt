@@ -5,6 +5,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.ProducerScope
+import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.channels.actor
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.channels.consumeEach
@@ -56,7 +57,7 @@ class Store(
         }
     }
 
-    private val transactionActor = scope.actor<Intent.Transaction> {
+    private val transactionActor: SendChannel<Intent.Transaction> = scope.actor {
         consumeEach {
             when (it) {
                 is Intent.Transaction.IncrementTransactionLevel -> transactionLevel += 1
@@ -82,13 +83,13 @@ class Store(
         }
     }
 
-    private val transactionLevelActor = scope.actor<Intent.TransactionLevel> {
+    private val transactionLevelActor: SendChannel<Intent.TransactionLevel> = scope.actor {
         consumeEach {
             it.ack.complete(transactionLevel)
         }
     }
 
-    private val getActor = scope.actor<Intent.Get> {
+    private val getActor: SendChannel<Intent.Get> = scope.actor {
         consumeEach { intent ->
             data.also {
                 intent.ack.complete(intent.route?.let { data[it] } ?: data)
@@ -96,7 +97,7 @@ class Store(
         }
     }
 
-    private val insertActor = scope.actor<Intent.Insert> {
+    private val insertActor: SendChannel<Intent.Insert> = scope.actor {
         consumeEach {
             callbackFlow {
                 val route = it.route
@@ -118,7 +119,7 @@ class Store(
         }
     }
 
-    private val batchActor = scope.actor<Intent.Batch> {
+    private val batchActor: SendChannel<Intent.Batch> = scope.actor {
         consumeEach {
             val routes: MutableSet<Route> = mutableSetOf()
             it.updates.forEach { (route, value) ->
@@ -135,14 +136,14 @@ class Store(
         }
     }
 
-    private val setActor = scope.actor<Intent.Set> {
+    private val setActor: SendChannel<Intent.Set> = scope.actor {
         consumeEach {
             val (route, value, ack) = it
             if (transactionLevel == 0) {
                 data[route] = value
                 route.lineage.reversed().forEach { lineage ->
                     subscriptions[lineage].let { subject ->
-                        subject?.values?.forEach {
+                        subject?.values?.toList()?.forEach {
                             it.send(data[lineage])
                         }
                     }

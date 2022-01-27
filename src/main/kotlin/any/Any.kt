@@ -31,7 +31,7 @@ data class any(private var internal: Any? = null) {
     fun invoke(): Any? = (internal as? any)()?.run {
         when (this) {
             is List<*> -> map { it() }
-            is Map<*, *> -> mapValues { it.value() }
+            is Map<*, *> -> toMap().mapValues { it.value() }
             else -> this
         }
     } ?: internal
