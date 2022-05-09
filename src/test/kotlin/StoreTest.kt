@@ -1,6 +1,7 @@
 import any.get
 import any.invoke
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
@@ -8,7 +9,7 @@ import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import utils.RandomRoutes
@@ -20,12 +21,13 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.test.fail
 
+@ExperimentalCoroutinesApi
 internal class StoreTest {
 
     @Test
     fun stream() {
         assertThrows<CancellationException> {
-            runBlocking {
+            runTest {
                 val store = Store()
                 val route = !listOf("way", "to", "my", "heart")
 
@@ -48,7 +50,7 @@ internal class StoreTest {
     @Test
     fun `update upstream`() {
         assertThrows<CancellationException> {
-            runBlocking {
+            runTest {
                 val store = Store()
 
                 val listOfKeys = listOf("a", 2, "c")
@@ -74,7 +76,7 @@ internal class StoreTest {
     @Test
     fun `update downstream`() {
         assertThrows<CancellationException> {
-            runBlocking {
+            runTest {
                 val store = Store()
 
                 val listOfKeys = listOf("a", 2, "c")
@@ -99,7 +101,7 @@ internal class StoreTest {
     }
 
     @Test
-    fun batch() = runBlocking {
+    fun batch() = runTest {
         val routes = RandomRoutes(
             keys = "abc".map { it.toString() },
             indices = listOf(1, 2),
@@ -171,7 +173,7 @@ internal class StoreTest {
     }
 
     @Test
-    fun transactions() = runBlocking {
+    fun transactions() = runTest {
         val o = Store()
         val latch = CountDownLatch(1)
 
@@ -222,7 +224,7 @@ internal class StoreTest {
     }
 
     @Test
-    fun `transaction level`() = runBlocking {
+    fun `transaction level`() = runTest {
         val o = Store()
         o.transaction {
             assertEquals(1, transactionalLevel())
@@ -246,7 +248,7 @@ internal class StoreTest {
     }
 
     @Test
-    fun `1000 subscriptions`() = runBlocking {
+    fun `1000 subscriptions`() = runTest {
         val routes = RandomRoutes(
             keys = "abcde".map { it.toString() },
             indices = listOf(1, 2, 3),
@@ -290,7 +292,7 @@ internal class StoreTest {
     }
 
     @Test
-    fun `thread safety`() = runBlocking {
+    fun `thread safety`() = runTest {
         val f: (String) -> List<Route> = { alphabet ->
             RandomRoutes(
                 keys = alphabet.map { it.toString() },

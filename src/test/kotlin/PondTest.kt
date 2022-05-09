@@ -1,6 +1,7 @@
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.actor
@@ -8,7 +9,7 @@ import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
 import org.junit.jupiter.api.RepeatedTest
 import org.junit.jupiter.api.Test
@@ -20,10 +21,11 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
+@ExperimentalCoroutinesApi
 class PondTest {
 
     @Test
-    fun versioning() = runBlocking {
+    fun versioning() = runTest {
         val store = Store()
         val db = Database(store = store)
         val gushSource = hashMapOf<String, Pond.GushSource>()
@@ -61,7 +63,7 @@ class PondTest {
     }
 
     @Test
-    fun `reference counting`() = runBlocking {
+    fun `reference counting`() = runTest {
         val store = Store()
         val db = Database(store = store)
         val gushSource = hashMapOf<String, Pond.GushSource>()
@@ -109,8 +111,8 @@ class PondTest {
         assertNull(gushSource["v/1.0/way/to"]?.referenceCount)
     }
 
-    @RepeatedTest(10)
-    fun `live mapping update`() = runBlocking {
+    @Test
+    fun `live mapping update`() = runTest {
         val store = Store()
         val db = Database(store = store)
         val pond = Pond(source = db)
@@ -121,7 +123,7 @@ class PondTest {
             keyBias = 1f,
             length = 4..9,
             seed = 7
-        ).generate(1000)
+        ).generate(500)
 
         val latch = CountDownLatch(3)
         val versions = (1..3).map { it }
