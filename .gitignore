@@ -3,7 +3,7 @@ build/
 .idea/
 .gradle/  
 gradlew.bat
-gradlew
+!gradle/wrapper/gradle-wrapper.jar
 
 # Compiled class file
 *.class
