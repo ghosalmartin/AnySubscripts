@@ -2,6 +2,8 @@
 
 Counterpart to https://github.com/screensailor/OptionalSubscripts/
 
+[![Unit Tests](https://github.com/ghosalmartin/AnySubscripts/actions/workflows/gradle.yml/badge.svg)](https://github.com/ghosalmartin/AnySubscripts/actions/workflows/gradle.yml)
+
 All equality expressions below return `true`:
 
 ```kotlin
