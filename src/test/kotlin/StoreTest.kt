@@ -5,6 +5,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.map
@@ -110,8 +111,8 @@ internal class StoreTest {
             seed = 4
         ).generate(10000)
 
-        val o = Store()
-        val o2 = Store()
+        val o = Store(scope = this)
+        val o2 = Store(scope = this)
 
         val route = !listOf("b", "b")
 
@@ -121,23 +122,20 @@ internal class StoreTest {
         var result: Any? = null
 
         val latch = CountDownLatch(1)
-        val jobs = mutableListOf<Job>()
 
-        jobs += launch(Dispatchers.Default) {
+        launch {
             o.stream(route)
                 .collectLatest {
                     countO += 1
                 }
         }
 
-        jobs += launch(Dispatchers.Default) {
+        launch {
             o2.stream(route)
                 .collectLatest {
                     countO2 += 1
                     result = it
-                    it?.let {
-                        latch.countDown()
-                    }
+                    it?.let { latch.countDown() }
                 }
         }
 
@@ -155,7 +153,6 @@ internal class StoreTest {
         o2.batch(updates)
 
         latch.await()
-        jobs.map { it.cancel() }
 
         val original = o.get()
         val copy = o2.get()
@@ -168,8 +165,8 @@ internal class StoreTest {
         assertEquals(originalRouted, copyRouted)
 
         assertEquals(2, countO2)
-        //TODO see why theres a missing emission when ran separately
-        assertTrue(expectedNumberOfRoutes.size <= countO)
+        assertEquals(expectedNumberOfRoutes.size, countO)
+        coroutineContext.cancelChildren()
     }
 
     @Test
