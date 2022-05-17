@@ -24,6 +24,7 @@ import java.util.concurrent.Executors
 typealias Continuation = ProducerScope<Flow<Any?>>
 
 data class Pond<GushID, Source : Geyser<GushID, Flow<Any?>, Flow<Pair<GushID, Route>?>>>(
+    private val scope: CoroutineScope = CoroutineScope(Dispatchers.Unconfined),
     private val source: Source,
     private val store: Store = Store(),
     private val sourceIDs: HashMap<Route, GushID> = hashMapOf(),
@@ -60,8 +61,6 @@ data class Pond<GushID, Source : Geyser<GushID, Flow<Any?>, Flow<Pair<GushID, Ro
 
         data class Count<GushID>(val id: GushID, val change: Int) : Intent
     }
-
-    private val scope = CoroutineScope(Dispatchers.Unconfined)
 
     private val actor = scope.actor<Intent> {
         consumeEach {

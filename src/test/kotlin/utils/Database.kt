@@ -22,7 +22,8 @@ typealias Gushes = Flow<Any?>
 typealias GushRouteToMapping = Flow<Pair<String, Route>?>
 
 class Database(
-    private val store: Store = Store()
+    private val scope: CoroutineScope = CoroutineScope(Dispatchers.Unconfined),
+    private val store: Store = Store(),
 ) : Geyser<String, Gushes, GushRouteToMapping> {
 
     private sealed interface Intent {
@@ -33,8 +34,6 @@ class Database(
 
     private val versionStateFlow = MutableStateFlow("v/1.0/")
     private var gushRouteCount = 2
-
-    private val scope = CoroutineScope(Dispatchers.Unconfined)
 
     private val actor = scope.actor<Intent> {
         consumeEach { intent ->

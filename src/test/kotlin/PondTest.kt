@@ -2,8 +2,8 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.channels.actor
 import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.delay
@@ -56,7 +56,7 @@ class PondTest {
         latch.await()
 
         assertEquals("❤️💛💚🤍", hearts)
-        delay(20) //TODO Remove this but how to know to wait for cleanup?
+        testScheduler.advanceUntilIdle()
         assertNull(gushSource["v/1.0/way/to"]?.referenceCount)
         assertEquals(1, gushSource["v/2.0/way/to"]?.referenceCount)
         job.cancelAndJoin()
@@ -113,9 +113,9 @@ class PondTest {
 
     @Test
     fun `live mapping update`() = runTest {
-        val store = Store()
-        val db = Database(store = store)
-        val pond = Pond(source = db)
+        val store = Store(scope = this)
+        val db = Database(scope = this, store = store)
+        val pond = Pond(scope = this, source = db)
 
         val routes = RandomRoutes(
             keys = "abc".map { it.toString() },
@@ -125,15 +125,13 @@ class PondTest {
             seed = 7
         ).generate(500)
 
-        val latch = CountDownLatch(3)
         val versions = (1..3).map { it }
+        val latch = CountDownLatch(versions.size)
 
-        val result = Result()
-
-        val jobs = mutableListOf<Job>()
+        val result = Result(scope = this)
 
         routes.forEach { route ->
-            jobs += launch(Dispatchers.Default) {
+            launch {
                 pond.stream(route).collectLatest {
                     result.set(route, it as? String)
                 }
@@ -141,17 +139,17 @@ class PondTest {
         }
 
         versions.forEach { version ->
-            jobs += launch(Dispatchers.Default) {
+            launch {
                 routes.forEach { route ->
                     val customRoute =
                         listOf(Location("v/$version.0/${route.take(2).joinToString("/")}")) + route.drop(2)
                     store.set(customRoute, "✅ v$version")
                 }
-                delay(100)
                 latch.countDown()
             }
         }
 
+        testScheduler.advanceUntilIdle()
         latch.await()
 
         routes.forEach { route ->
@@ -163,43 +161,63 @@ class PondTest {
             assertEquals(l, r)
         }
 
-        val v1 = result.values.toMap()
+        val v1 = result.get()
         assertTrue(v1.isNotEmpty())
         assertTrue(v1.map { it.value }.all { it == "✅ v1" })
 
+        result.clear()
+
         db.setVersion("v/3.0/")
 
-        delay(100)
-        jobs.forEach { it.cancelAndJoin() }
+        testScheduler.advanceUntilIdle()
 
-        val v3 = result.values.toMap()
+        val v3 = result.get()
 
         assertTrue(v3.isNotEmpty())
         assertTrue(v3.map { it.value }.all { it == "✅ v3" })
 
         assertEquals(v1.keys, v3.keys)
+
+        coroutineContext.cancelChildren()
     }
 
     private class Result(
-        val values: MutableMap<Route, String> = mutableMapOf()
+        scope: CoroutineScope = CoroutineScope(Dispatchers.Unconfined),
+        private val values: MutableMap<Route, String> = mutableMapOf(),
     ) {
 
         private sealed interface Intent {
-            data class Set(val route: Route, val value: String?, val completableDeferred: CompletableDeferred<Unit>)
+            data class Set(val route: Route, val value: String?, val completableDeferred: CompletableDeferred<Unit>): Intent
+            data class Clear(val completableDeferred: CompletableDeferred<Unit>): Intent
+            data class Get(val completableDeferred: CompletableDeferred<Map<Route, String>>): Intent
         }
 
-        private val scope = CoroutineScope(Dispatchers.Unconfined)
-
-        private val actor = scope.actor<Intent.Set> {
-            consumeEach { (route, value, deferred) ->
-                if (value != null) {
-                    values[route] = value
-                } else {
-                    values.remove(route)
+        private val actor = scope.actor<Intent> {
+            consumeEach { intent ->
+                when(intent){
+                    is Intent.Clear -> values.clear().also { intent.completableDeferred.complete(Unit) }
+                    is Intent.Set -> {
+                        if (intent.value != null) {
+                            values[intent.route] = intent.value
+                        } else {
+                            values.remove(intent.route)
+                        }
+                        intent.completableDeferred.complete(Unit)
+                    }
+                    is Intent.Get -> intent.completableDeferred.complete(values)
                 }
-                deferred.complete(Unit)
             }
         }
+
+        suspend fun get() =
+            CompletableDeferred<Map<Route, String>>().apply {
+                actor.send(Intent.Get(this))
+            }.await()
+
+        suspend fun clear() =
+            CompletableDeferred<Unit>().apply {
+                actor.send(Intent.Clear(this))
+            }.await()
 
         suspend fun set(route: Route, value: String?) {
             CompletableDeferred<Unit>().apply {
