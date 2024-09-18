@@ -36,6 +36,7 @@ class PondTest {
         val job = launch(Dispatchers.Default) {
             pond.stream(!listOf("way", "to", "my", "heart"))
                 .collectLatest { heart ->
+                    println(heart)
                     hearts += heart ?: ""
 
                     when (heart) {
