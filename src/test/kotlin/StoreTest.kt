@@ -1,7 +1,6 @@
 import any.get
 import any.invoke
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
@@ -22,7 +21,6 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.test.fail
 
-@ExperimentalCoroutinesApi
 internal class StoreTest {
 
     @Test
@@ -142,7 +140,7 @@ internal class StoreTest {
         val expectedNumberOfRoutes = routes
             .filter {
                 it.elementAtOrNull(0)?.stringValue == "b" &&
-                    it.elementAtOrNull(1)?.stringValue == "b"
+                        it.elementAtOrNull(1)?.stringValue == "b"
             }
 
         val updates: BatchUpdates = routes.map {
